@@ -9,10 +9,8 @@ local flying = false
 local bodyVelocity = nil
 local bodyGyro = nil
 local minimized = false
-
--- Ноклип переменные
-local noclipParts = {}
-local noclipActive = false
+local currentTarget = nil
+local pathPoints = {}
 
 -- GUI
 local screenGui = Instance.new("ScreenGui")
@@ -49,9 +47,9 @@ titleCorner.Parent = titleBar
 local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(0.7, 0, 1, 0)
 titleText.Position = UDim2.new(0.05, 0, 0, 0)
-titleText.Text = "✈️ ТЕЛЕПОРТ"
+titleText.Text = "🧭 ОБХОД ПРЕПЯТСТВИЙ"
 titleText.TextColor3 = Color3.fromRGB(180, 180, 200)
-titleText.TextSize = 18
+titleText.TextSize = 16
 titleText.TextXAlignment = Enum.TextXAlignment.Left
 titleText.BackgroundTransparency = 1
 titleText.Parent = titleBar
@@ -91,7 +89,7 @@ content.Position = UDim2.new(0, 0, 0, 40)
 content.BackgroundTransparency = 1
 content.Parent = frame
 
--- Координаты текущей позиции
+-- Координаты
 local posLabel = Instance.new("TextLabel")
 posLabel.Size = UDim2.new(0.9, 0, 0, 25)
 posLabel.Position = UDim2.new(0.05, 0, 0.03, 0)
@@ -194,52 +192,91 @@ status.TextXAlignment = Enum.TextXAlignment.Center
 status.BackgroundTransparency = 1
 status.Parent = content
 
--- ===== ФУНКЦИЯ НОКЛИПА (ГАРАНТИРОВАННО РАБОТАЕТ) =====
+-- ===== ФУНКЦИЯ ОБХОДА ПРЕПЯТСТВИЙ =====
 
-local function enableNoclip()
-    noclipActive = true
-    local char = player.Character
-    if not char then return end
+local function findPath(startPos, endPos, maxAttempts)
+    maxAttempts = maxAttempts or 30
+    local attempts = 0
+    local currentPos = startPos
+    local path = {startPos}
     
-    -- Собираем все части персонажа
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = false
-            table.insert(noclipParts, part)
+    while attempts < maxAttempts do
+        attempts = attempts + 1
+        
+        local direction = (endPos - currentPos)
+        local distance = direction.Magnitude
+        
+        if distance < 5 then
+            table.insert(path, endPos)
+            return path
+        end
+        
+        local dirUnit = direction.Unit
+        
+        -- Проверяем, есть ли препятствие впереди
+        local rayOrigin = currentPos + Vector3.new(0, 2, 0)
+        local rayDirection = dirUnit * 8
+        
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+        raycastParams.FilterDescendantsInstances = {player.Character}
+        raycastParams.IgnoreWater = true
+        
+        local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+        
+        if rayResult and rayResult.Distance < 6 then
+            -- Есть препятствие! Облетаем его
+            
+            -- Пытаемся обойти слева
+            local leftDir = Vector3.new(-dirUnit.Z, 0, dirUnit.X).Unit
+            local leftPos = currentPos + (dirUnit + leftDir * 2).Unit * 4
+            leftPos = Vector3.new(leftPos.X, currentPos.Y, leftPos.Z)
+            
+            -- Проверяем, свободно ли слева
+            local leftRay = workspace:Raycast(leftPos + Vector3.new(0, 2, 0), Vector3.new(0, -4, 0), raycastParams)
+            
+            if not leftRay then
+                table.insert(path, leftPos)
+                currentPos = leftPos
+                status.Text = "Обход слева..."
+                continue
+            end
+            
+            -- Пытаемся обойти справа
+            local rightDir = Vector3.new(dirUnit.Z, 0, -dirUnit.X).Unit
+            local rightPos = currentPos + (dirUnit + rightDir * 2).Unit * 4
+            rightPos = Vector3.new(rightPos.X, currentPos.Y, rightPos.Z)
+            
+            local rightRay = workspace:Raycast(rightPos + Vector3.new(0, 2, 0), Vector3.new(0, -4, 0), raycastParams)
+            
+            if not rightRay then
+                table.insert(path, rightPos)
+                currentPos = rightPos
+                status.Text = "Обход справа..."
+                continue
+            end
+            
+            -- Если ни слева ни справа не свободно — летим вверх
+            local upPos = currentPos + Vector3.new(0, 8, 0)
+            table.insert(path, upPos)
+            currentPos = upPos
+            status.Text = "Обход сверху..."
+        else
+            -- Двигаемся вперёд
+            local nextPos = currentPos + dirUnit * 5
+            nextPos = Vector3.new(nextPos.X, currentPos.Y, nextPos.Z)
+            table.insert(path, nextPos)
+            currentPos = nextPos
         end
     end
+    
+    -- Если не нашли путь — просто летим напрямую
+    table.insert(path, endPos)
+    return path
 end
 
-local function disableNoclip()
-    noclipActive = false
-    local char = player.Character
-    if not char then 
-        noclipParts = {}
-        return 
-    end
-    
-    -- Включаем коллизию обратно
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = true
-        end
-    end
-    noclipParts = {}
-end
+-- ===== ОСНОВНЫЕ ФУНКЦИИ =====
 
--- Отслеживаем добавление новых частей (например, одежда)
-player.CharacterAdded:Connect(function(newChar)
-    char = newChar
-    humanoid = char:WaitForChild("Humanoid")
-    
-    -- Если ноклип был включён, применяем к новому персонажу
-    if noclipActive then
-        task.wait(0.1)
-        enableNoclip()
-    end
-end)
-
--- Обновление координат
 local function updatePos()
     local char = player.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
@@ -270,7 +307,7 @@ saveBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Лететь
+-- Лететь с обходом препятствий
 flyBtn.MouseButton1Click:Connect(function()
     if not savedPosition then
         status.Text = "ОШИБКА: Нет сохранённой точки!"
@@ -285,9 +322,18 @@ flyBtn.MouseButton1Click:Connect(function()
         return
     end
     
-    -- ВКЛЮЧАЕМ НОКЛИП (ПРОХОД СКВОЗЬ СТЕНЫ)
-    enableNoclip()
-    status.Text = "✅ Ноклип ВКЛЮЧЁН"
+    -- Строим маршрут с обходом препятствий
+    local startPos = char.HumanoidRootPart.Position
+    pathPoints = findPath(startPos, savedPosition, 40)
+    
+    if #pathPoints < 2 then
+        status.Text = "ОШИБКА: Не могу построить маршрут"
+        status.TextColor3 = Color3.fromRGB(200, 80, 80)
+        return
+    end
+    
+    status.Text = "Маршрут построен! " .. #pathPoints .. " точек"
+    status.TextColor3 = Color3.fromRGB(100, 200, 255)
     
     -- Отключаем гравитацию
     humanoid.PlatformStand = true
@@ -306,57 +352,37 @@ flyBtn.MouseButton1Click:Connect(function()
         bodyGyro = nil
     end
     
-    -- Создаём BodyVelocity для полёта
+    -- Создаём BodyVelocity
     bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.Velocity = Vector3.new(0, 0, 0)
     bodyVelocity.MaxForce = Vector3.new(400000, 400000, 400000)
     bodyVelocity.Parent = char.HumanoidRootPart
     
-    -- Создаём BodyGyro для стабилизации
+    -- Создаём BodyGyro
     bodyGyro = Instance.new("BodyGyro")
     bodyGyro.CFrame = char.HumanoidRootPart.CFrame
     bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
     bodyGyro.Parent = char.HumanoidRootPart
     
     flying = true
-    status.Text = "✈️ ЛЕТИМ С НОКЛИПОМ..."
-    status.TextColor3 = Color3.fromRGB(100, 200, 255)
+    local pointIndex = 2 -- начинаем со второй точки (первая - текущая позиция)
     
     spawn(function()
-        while flying and char and char:FindFirstChild("HumanoidRootPart") do
+        while flying and char and char:FindFirstChild("HumanoidRootPart") and pointIndex <= #pathPoints do
+            local targetPos = pathPoints[pointIndex]
             local currentPos = char.HumanoidRootPart.Position
-            local distance = (savedPosition - currentPos).Magnitude
+            local distance = (targetPos - currentPos).Magnitude
             
-            if distance < 3 then
-                -- Прилетели
-                flying = false
-                if bodyVelocity then
-                    bodyVelocity:Destroy()
-                    bodyVelocity = nil
+            if distance < 4 then
+                pointIndex = pointIndex + 1
+                if pointIndex <= #pathPoints then
+                    status.Text = "Точка " .. pointIndex .. "/" .. #pathPoints
                 end
-                if bodyGyro then
-                    bodyGyro:Destroy()
-                    bodyGyro = nil
-                end
-                
-                -- Включаем гравитацию
-                humanoid.PlatformStand = false
-                humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-                humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
-                humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
-                humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
-                
-                -- ВЫКЛЮЧАЕМ НОКЛИП
-                disableNoclip()
-                status.Text = "✅ Ноклип ВЫКЛЮЧЁН"
-                
-                status.Text = "✅ ПРИЛЕТЕЛ!"
-                status.TextColor3 = Color3.fromRGB(100, 200, 100)
-                break
+                continue
             end
             
             -- Скорость
-            local direction = (savedPosition - currentPos).Unit
+            local direction = (targetPos - currentPos).Unit
             local currentSpeed = speed
             
             local speedVal = tonumber(speedInput.Text)
@@ -370,6 +396,32 @@ flyBtn.MouseButton1Click:Connect(function()
             end
             
             task.wait()
+        end
+        
+        -- Прилетели
+        flying = false
+        if bodyVelocity then
+            bodyVelocity:Destroy()
+            bodyVelocity = nil
+        end
+        if bodyGyro then
+            bodyGyro:Destroy()
+            bodyGyro = nil
+        end
+        
+        -- Включаем гравитацию
+        humanoid.PlatformStand = false
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+        
+        if pointIndex > #pathPoints then
+            status.Text = "✅ ПРИЛЕТЕЛ!"
+            status.TextColor3 = Color3.fromRGB(100, 200, 100)
+        else
+            status.Text = "⏹ ОСТАНОВЛЕН"
+            status.TextColor3 = Color3.fromRGB(200, 200, 100)
         end
     end)
 end)
@@ -387,22 +439,17 @@ stopFlyBtn.MouseButton1Click:Connect(function()
         bodyGyro = nil
     end
     
-    -- Включаем гравитацию
     humanoid.PlatformStand = false
     humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
     
-    -- ВЫКЛЮЧАЕМ НОКЛИП
-    disableNoclip()
-    status.Text = "✅ Ноклип ВЫКЛЮЧЁН"
-    
     status.Text = "⏹ ОСТАНОВЛЕН"
     status.TextColor3 = Color3.fromRGB(200, 200, 100)
 end)
 
--- Обновление скорости
+-- Скорость
 speedInput.FocusLost:Connect(function()
     local val = tonumber(speedInput.Text)
     if val and val > 0 then
@@ -435,8 +482,7 @@ closeBtn.MouseButton1Click:Connect(function()
         bodyGyro = nil
     end
     humanoid.PlatformStand = false
-    disableNoclip()
     screenGui:Destroy()
 end)
 
-print("✅ Телепорт-меню загружено! Ноклип РАБОТАЕТ — проходишь сквозь стены!")
+print("✅ Обход препятствий загружен! Персонаж облетает стены.")
