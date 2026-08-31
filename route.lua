@@ -9,8 +9,8 @@ local flying = false
 local bodyVelocity = nil
 local bodyGyro = nil
 local minimized = false
-local currentTarget = nil
 local pathPoints = {}
+local noclipMode = false
 
 -- GUI
 local screenGui = Instance.new("ScreenGui")
@@ -19,8 +19,8 @@ screenGui.ResetOnSpawn = false
 
 -- Окно
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 280, 0, 280)
-frame.Position = UDim2.new(0.5, -140, 0.5, -140)
+frame.Size = UDim2.new(0, 280, 0, 330)
+frame.Position = UDim2.new(0.5, -140, 0.5, -165)
 frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 frame.BackgroundTransparency = 0.05
 frame.BorderSizePixel = 0
@@ -103,7 +103,7 @@ posLabel.Parent = content
 -- Кнопка "Запомнить точку"
 local saveBtn = Instance.new("TextButton")
 saveBtn.Size = UDim2.new(0.85, 0, 0, 40)
-saveBtn.Position = UDim2.new(0.075, 0, 0.15, 0)
+saveBtn.Position = UDim2.new(0.075, 0, 0.13, 0)
 saveBtn.Text = "📌 ЗАПОМНИТЬ ТОЧКУ"
 saveBtn.TextColor3 = Color3.new(1, 1, 1)
 saveBtn.TextSize = 15
@@ -118,7 +118,7 @@ saveCorner.Parent = saveBtn
 -- Статус точки
 local pointStatus = Instance.new("TextLabel")
 pointStatus.Size = UDim2.new(0.9, 0, 0, 25)
-pointStatus.Position = UDim2.new(0.05, 0, 0.3, 0)
+pointStatus.Position = UDim2.new(0.05, 0, 0.27, 0)
 pointStatus.Text = "Точка не задана"
 pointStatus.TextColor3 = Color3.fromRGB(200, 80, 80)
 pointStatus.TextSize = 13
@@ -126,10 +126,25 @@ pointStatus.TextXAlignment = Enum.TextXAlignment.Center
 pointStatus.BackgroundTransparency = 1
 pointStatus.Parent = content
 
+-- Кнопка "Обход" (вкл/выкл)
+local noclipBtn = Instance.new("TextButton")
+noclipBtn.Size = UDim2.new(0.85, 0, 0, 35)
+noclipBtn.Position = UDim2.new(0.075, 0, 0.36, 0)
+noclipBtn.Text = "🚧 ОБХОД: ВЫКЛ"
+noclipBtn.TextColor3 = Color3.new(1, 1, 1)
+noclipBtn.TextSize = 14
+noclipBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+noclipBtn.BorderSizePixel = 0
+noclipBtn.Parent = content
+
+local noclipCorner = Instance.new("UICorner")
+noclipCorner.CornerRadius = UDim.new(0, 6)
+noclipCorner.Parent = noclipBtn
+
 -- Скорость
 local speedLabel = Instance.new("TextLabel")
 speedLabel.Size = UDim2.new(0.4, 0, 0, 20)
-speedLabel.Position = UDim2.new(0.075, 0, 0.4, 0)
+speedLabel.Position = UDim2.new(0.075, 0, 0.47, 0)
 speedLabel.Text = "СКОРОСТЬ"
 speedLabel.TextColor3 = Color3.fromRGB(130, 130, 150)
 speedLabel.TextSize = 11
@@ -139,7 +154,7 @@ speedLabel.Parent = content
 
 local speedInput = Instance.new("TextBox")
 speedInput.Size = UDim2.new(0.4, 0, 0, 30)
-speedInput.Position = UDim2.new(0.075, 0, 0.44, 0)
+speedInput.Position = UDim2.new(0.075, 0, 0.51, 0)
 speedInput.Text = "50"
 speedInput.TextColor3 = Color3.fromRGB(200, 200, 220)
 speedInput.TextSize = 14
@@ -154,7 +169,7 @@ speedCorner.Parent = speedInput
 -- Кнопка "Лететь"
 local flyBtn = Instance.new("TextButton")
 flyBtn.Size = UDim2.new(0.4, 0, 0, 40)
-flyBtn.Position = UDim2.new(0.525, 0, 0.4, 0)
+flyBtn.Position = UDim2.new(0.525, 0, 0.47, 0)
 flyBtn.Text = "🚀 ЛЕТЕТЬ"
 flyBtn.TextColor3 = Color3.new(1, 1, 1)
 flyBtn.TextSize = 15
@@ -169,7 +184,7 @@ flyCorner.Parent = flyBtn
 -- Кнопка "Стоп"
 local stopFlyBtn = Instance.new("TextButton")
 stopFlyBtn.Size = UDim2.new(0.4, 0, 0, 35)
-stopFlyBtn.Position = UDim2.new(0.525, 0, 0.58, 0)
+stopFlyBtn.Position = UDim2.new(0.525, 0, 0.65, 0)
 stopFlyBtn.Text = "⏹ СТОП"
 stopFlyBtn.TextColor3 = Color3.new(1, 1, 1)
 stopFlyBtn.TextSize = 14
@@ -184,7 +199,7 @@ stopCorner.Parent = stopFlyBtn
 -- Статус
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(0.9, 0, 0, 25)
-status.Position = UDim2.new(0.05, 0, 0.78, 0)
+status.Position = UDim2.new(0.05, 0, 0.82, 0)
 status.Text = "ГОТОВ"
 status.TextColor3 = Color3.fromRGB(100, 200, 100)
 status.TextSize = 13
@@ -192,7 +207,55 @@ status.TextXAlignment = Enum.TextXAlignment.Center
 status.BackgroundTransparency = 1
 status.Parent = content
 
--- ===== ФУНКЦИЯ ОБХОДА ПРЕПЯТСТВИЙ =====
+-- ===== ФУНКЦИИ =====
+
+-- Обновление координат
+local function updatePos()
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local pos = char.HumanoidRootPart.Position
+        posLabel.Text = string.format("Позиция: %.1f, %.1f, %.1f", pos.X, pos.Y, pos.Z)
+    end
+end
+
+spawn(function()
+    while true do
+        task.wait(0.5)
+        updatePos()
+    end
+end)
+
+-- ===== КНОПКА ОБХОД =====
+
+noclipBtn.MouseButton1Click:Connect(function()
+    noclipMode = not noclipMode
+    
+    if noclipMode then
+        noclipBtn.Text = "🚧 ОБХОД: ВКЛ"
+        noclipBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+        status.Text = "Обход препятствий ВКЛЮЧЁН"
+        status.TextColor3 = Color3.fromRGB(100, 200, 100)
+        
+        -- Включаем обход
+        local char = player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            char.HumanoidRootPart.CanCollide = false
+        end
+    else
+        noclipBtn.Text = "🚧 ОБХОД: ВЫКЛ"
+        noclipBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        status.Text = "Обход препятствий ВЫКЛЮЧЁН"
+        status.TextColor3 = Color3.fromRGB(200, 200, 100)
+        
+        -- Выключаем обход
+        local char = player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            char.HumanoidRootPart.CanCollide = true
+        end
+    end
+end)
+
+-- ===== ФУНКЦИЯ ПОСТРОЕНИЯ ПУТИ =====
 
 local function findPath(startPos, endPos, maxAttempts)
     maxAttempts = maxAttempts or 30
@@ -213,7 +276,7 @@ local function findPath(startPos, endPos, maxAttempts)
         
         local dirUnit = direction.Unit
         
-        -- Проверяем, есть ли препятствие впереди
+        -- Проверяем препятствие
         local rayOrigin = currentPos + Vector3.new(0, 2, 0)
         local rayDirection = dirUnit * 8
         
@@ -225,14 +288,11 @@ local function findPath(startPos, endPos, maxAttempts)
         local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
         
         if rayResult and rayResult.Distance < 6 then
-            -- Есть препятствие! Облетаем его
-            
-            -- Пытаемся обойти слева
+            -- Обход слева
             local leftDir = Vector3.new(-dirUnit.Z, 0, dirUnit.X).Unit
             local leftPos = currentPos + (dirUnit + leftDir * 2).Unit * 4
             leftPos = Vector3.new(leftPos.X, currentPos.Y, leftPos.Z)
             
-            -- Проверяем, свободно ли слева
             local leftRay = workspace:Raycast(leftPos + Vector3.new(0, 2, 0), Vector3.new(0, -4, 0), raycastParams)
             
             if not leftRay then
@@ -242,7 +302,7 @@ local function findPath(startPos, endPos, maxAttempts)
                 continue
             end
             
-            -- Пытаемся обойти справа
+            -- Обход справа
             local rightDir = Vector3.new(dirUnit.Z, 0, -dirUnit.X).Unit
             local rightPos = currentPos + (dirUnit + rightDir * 2).Unit * 4
             rightPos = Vector3.new(rightPos.X, currentPos.Y, rightPos.Z)
@@ -256,13 +316,12 @@ local function findPath(startPos, endPos, maxAttempts)
                 continue
             end
             
-            -- Если ни слева ни справа не свободно — летим вверх
+            -- Обход сверху
             local upPos = currentPos + Vector3.new(0, 8, 0)
             table.insert(path, upPos)
             currentPos = upPos
             status.Text = "Обход сверху..."
         else
-            -- Двигаемся вперёд
             local nextPos = currentPos + dirUnit * 5
             nextPos = Vector3.new(nextPos.X, currentPos.Y, nextPos.Z)
             table.insert(path, nextPos)
@@ -270,27 +329,11 @@ local function findPath(startPos, endPos, maxAttempts)
         end
     end
     
-    -- Если не нашли путь — просто летим напрямую
     table.insert(path, endPos)
     return path
 end
 
--- ===== ОСНОВНЫЕ ФУНКЦИИ =====
-
-local function updatePos()
-    local char = player.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        local pos = char.HumanoidRootPart.Position
-        posLabel.Text = string.format("Позиция: %.1f, %.1f, %.1f", pos.X, pos.Y, pos.Z)
-    end
-end
-
-spawn(function()
-    while true do
-        task.wait(0.5)
-        updatePos()
-    end
-end)
+-- ===== КНОПКИ =====
 
 -- Запомнить точку
 saveBtn.MouseButton1Click:Connect(function()
@@ -307,7 +350,7 @@ saveBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Лететь с обходом препятствий
+-- Лететь
 flyBtn.MouseButton1Click:Connect(function()
     if not savedPosition then
         status.Text = "ОШИБКА: Нет сохранённой точки!"
@@ -322,18 +365,26 @@ flyBtn.MouseButton1Click:Connect(function()
         return
     end
     
-    -- Строим маршрут с обходом препятствий
-    local startPos = char.HumanoidRootPart.Position
-    pathPoints = findPath(startPos, savedPosition, 40)
+    -- Если включён обход — строим путь
+    local pointsToFollow = {savedPosition}
     
-    if #pathPoints < 2 then
-        status.Text = "ОШИБКА: Не могу построить маршрут"
-        status.TextColor3 = Color3.fromRGB(200, 80, 80)
-        return
+    if noclipMode then
+        local startPos = char.HumanoidRootPart.Position
+        pathPoints = findPath(startPos, savedPosition, 40)
+        
+        if #pathPoints < 2 then
+            status.Text = "ОШИБКА: Не могу построить маршрут"
+            status.TextColor3 = Color3.fromRGB(200, 80, 80)
+            return
+        end
+        
+        pointsToFollow = pathPoints
+        status.Text = "Маршрут построен! " .. #pathPoints .. " точек"
+        status.TextColor3 = Color3.fromRGB(100, 200, 255)
+    else
+        status.Text = "Летим напрямую (обход выключен)"
+        status.TextColor3 = Color3.fromRGB(100, 200, 255)
     end
-    
-    status.Text = "Маршрут построен! " .. #pathPoints .. " точек"
-    status.TextColor3 = Color3.fromRGB(100, 200, 255)
     
     -- Отключаем гравитацию
     humanoid.PlatformStand = true
@@ -365,23 +416,22 @@ flyBtn.MouseButton1Click:Connect(function()
     bodyGyro.Parent = char.HumanoidRootPart
     
     flying = true
-    local pointIndex = 2 -- начинаем со второй точки (первая - текущая позиция)
+    local pointIndex = 2
     
     spawn(function()
-        while flying and char and char:FindFirstChild("HumanoidRootPart") and pointIndex <= #pathPoints do
-            local targetPos = pathPoints[pointIndex]
+        while flying and char and char:FindFirstChild("HumanoidRootPart") and pointIndex <= #pointsToFollow do
+            local targetPos = pointsToFollow[pointIndex]
             local currentPos = char.HumanoidRootPart.Position
             local distance = (targetPos - currentPos).Magnitude
             
             if distance < 4 then
                 pointIndex = pointIndex + 1
-                if pointIndex <= #pathPoints then
-                    status.Text = "Точка " .. pointIndex .. "/" .. #pathPoints
+                if pointIndex <= #pointsToFollow then
+                    status.Text = "Точка " .. pointIndex .. "/" .. #pointsToFollow
                 end
                 continue
             end
             
-            -- Скорость
             local direction = (targetPos - currentPos).Unit
             local currentSpeed = speed
             
@@ -398,7 +448,6 @@ flyBtn.MouseButton1Click:Connect(function()
             task.wait()
         end
         
-        -- Прилетели
         flying = false
         if bodyVelocity then
             bodyVelocity:Destroy()
@@ -409,14 +458,13 @@ flyBtn.MouseButton1Click:Connect(function()
             bodyGyro = nil
         end
         
-        -- Включаем гравитацию
         humanoid.PlatformStand = false
         humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
         humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
         humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
         humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
         
-        if pointIndex > #pathPoints then
+        if pointIndex > #pointsToFollow then
             status.Text = "✅ ПРИЛЕТЕЛ!"
             status.TextColor3 = Color3.fromRGB(100, 200, 100)
         else
@@ -467,7 +515,7 @@ minBtn.MouseButton1Click:Connect(function()
     if minimized then
         frame.Size = UDim2.new(0, 280, 0, 40)
     else
-        frame.Size = UDim2.new(0, 280, 0, 280)
+        frame.Size = UDim2.new(0, 280, 0, 330)
     end
 end)
 
@@ -485,4 +533,4 @@ closeBtn.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
 
-print("✅ Обход препятствий загружен! Персонаж облетает стены.")
+print("✅ Обход препятствий загружен! Кнопка 'Обход' для включения/выключения.")
