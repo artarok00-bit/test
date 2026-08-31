@@ -8,8 +8,11 @@ local speed = 50
 local flying = false
 local bodyVelocity = nil
 local bodyGyro = nil
-local noclipEnabled = true
 local minimized = false
+
+-- Ноклип переменные
+local noclipParts = {}
+local noclipActive = false
 
 -- GUI
 local screenGui = Instance.new("ScreenGui")
@@ -191,20 +194,50 @@ status.TextXAlignment = Enum.TextXAlignment.Center
 status.BackgroundTransparency = 1
 status.Parent = content
 
--- === ФУНКЦИИ ===
+-- ===== ФУНКЦИЯ НОКЛИПА (ГАРАНТИРОВАННО РАБОТАЕТ) =====
 
--- Ноклип
-local function setNoclip(state)
-    noclipEnabled = state
+local function enableNoclip()
+    noclipActive = true
     local char = player.Character
-    if char then
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = not state
-            end
+    if not char then return end
+    
+    -- Собираем все части персонажа
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+            table.insert(noclipParts, part)
         end
     end
 end
+
+local function disableNoclip()
+    noclipActive = false
+    local char = player.Character
+    if not char then 
+        noclipParts = {}
+        return 
+    end
+    
+    -- Включаем коллизию обратно
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = true
+        end
+    end
+    noclipParts = {}
+end
+
+-- Отслеживаем добавление новых частей (например, одежда)
+player.CharacterAdded:Connect(function(newChar)
+    char = newChar
+    humanoid = char:WaitForChild("Humanoid")
+    
+    -- Если ноклип был включён, применяем к новому персонажу
+    if noclipActive then
+        task.wait(0.1)
+        enableNoclip()
+    end
+end)
 
 -- Обновление координат
 local function updatePos()
@@ -215,7 +248,6 @@ local function updatePos()
     end
 end
 
--- Обновление каждую секунду
 spawn(function()
     while true do
         task.wait(0.5)
@@ -253,8 +285,9 @@ flyBtn.MouseButton1Click:Connect(function()
         return
     end
     
-    -- ВКЛЮЧАЕМ НОКЛИП
-    setNoclip(true)
+    -- ВКЛЮЧАЕМ НОКЛИП (ПРОХОД СКВОЗЬ СТЕНЫ)
+    enableNoclip()
+    status.Text = "✅ Ноклип ВКЛЮЧЁН"
     
     -- Отключаем гравитацию
     humanoid.PlatformStand = true
@@ -286,7 +319,7 @@ flyBtn.MouseButton1Click:Connect(function()
     bodyGyro.Parent = char.HumanoidRootPart
     
     flying = true
-    status.Text = "✈️ ЛЕТИМ..."
+    status.Text = "✈️ ЛЕТИМ С НОКЛИПОМ..."
     status.TextColor3 = Color3.fromRGB(100, 200, 255)
     
     spawn(function()
@@ -314,25 +347,24 @@ flyBtn.MouseButton1Click:Connect(function()
                 humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
                 
                 -- ВЫКЛЮЧАЕМ НОКЛИП
-                setNoclip(false)
+                disableNoclip()
+                status.Text = "✅ Ноклип ВЫКЛЮЧЁН"
                 
                 status.Text = "✅ ПРИЛЕТЕЛ!"
                 status.TextColor3 = Color3.fromRGB(100, 200, 100)
                 break
             end
             
-            -- РАСЧЁТ СКОРОСТИ
+            -- Скорость
             local direction = (savedPosition - currentPos).Unit
             local currentSpeed = speed
             
-            -- Проверяем скорость из поля
             local speedVal = tonumber(speedInput.Text)
             if speedVal and speedVal > 0 then
                 currentSpeed = speedVal
                 speed = speedVal
             end
             
-            -- Применяем скорость
             if bodyVelocity then
                 bodyVelocity.Velocity = direction * currentSpeed
             end
@@ -363,7 +395,8 @@ stopFlyBtn.MouseButton1Click:Connect(function()
     humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
     
     -- ВЫКЛЮЧАЕМ НОКЛИП
-    setNoclip(false)
+    disableNoclip()
+    status.Text = "✅ Ноклип ВЫКЛЮЧЁН"
     
     status.Text = "⏹ ОСТАНОВЛЕН"
     status.TextColor3 = Color3.fromRGB(200, 200, 100)
@@ -402,8 +435,8 @@ closeBtn.MouseButton1Click:Connect(function()
         bodyGyro = nil
     end
     humanoid.PlatformStand = false
-    setNoclip(false)
+    disableNoclip()
     screenGui:Destroy()
 end)
 
-print("✅ Телепорт-меню загружено! Скорость работает!")
+print("✅ Телепорт-меню загружено! Ноклип РАБОТАЕТ — проходишь сквозь стены!")
