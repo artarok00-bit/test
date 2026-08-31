@@ -579,4 +579,97 @@ closeBtn.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
 
+-- =======================================================
+-- КНОПКА "УБРАТЬ МОНСТРОВ" (Анти-убийство)
+-- =======================================================
+
+local antiKillBtn = Instance.new("TextButton")
+antiKillBtn.Size = UDim2.new(0.85, 0, 0, 34)
+antiKillBtn.Position = UDim2.new(0.075, 0, 0.45, 0) -- Поставь туда, где удобно
+antiKillBtn.Text = "🛡️ УБРАТЬ МОНСТРОВ"
+antiKillBtn.TextColor3 = Color3.new(1, 1, 1)
+antiKillBtn.TextSize = 14
+antiKillBtn.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+antiKillBtn.BorderSizePixel = 0
+antiKillBtn.Parent = content
+
+local antiKillCorner = Instance.new("UICorner")
+antiKillCorner.CornerRadius = UDim.new(0, 6)
+antiKillCorner.Parent = antiKillBtn
+
+-- Функция для кнопки
+antiKillBtn.MouseButton1Click:Connect(function()
+    local char = player.Character
+    if not char then
+        status.Text = "❌ Персонаж не найден!"
+        status.TextColor3 = Color3.fromRGB(200, 80, 80)
+        return
+    end
+
+    -- 1. ВКЛЮЧАЕМ GOD MODE (бессмертие)
+    local humanoid = char:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.MaxHealth = math.huge -- Ставим бесконечное здоровье
+        humanoid.Health = math.huge
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false) -- Запрещаем состояние смерти
+        status.Text = "✅ God Mode включен!"
+        status.TextColor3 = Color3.fromRGB(100, 200, 100)
+    end
+
+    -- 2. ИЩЕМ И УДАЛЯЕМ МОНСТРОВ И УБИЙЦ
+    local monstersFound = 0
+    local function findAndRemoveMonsters(obj)
+        -- Проверяем текущий объект
+        if obj:IsA("Model") or obj:IsA("Part") or obj:IsA("BasePart") then
+            -- Ищем по ключевым словам в имени (обычно монстры названы "Monster", "Boss" или "Kill")
+            if string.find(string.lower(obj.Name), "monster") or 
+               string.find(string.lower(obj.Name), "boss") or 
+               string.find(string.lower(obj.Name), "chase") or
+               string.find(string.lower(obj.Name), "kill") or
+               string.find(string.lower(obj.Name), "deadly") then
+                
+                -- Проверяем, что удаляемый объект — не сам игрок
+                if obj ~= char and obj.Parent ~= char then
+                    pcall(function() obj:Destroy() end)
+                    monstersFound = monstersFound + 1
+                end
+            end
+        end
+        
+        -- Рекурсивно проверяем всех потомков
+        for _, child in pairs(obj:GetChildren()) do
+            findAndRemoveMonsters(child)
+        end
+    end
+
+    -- Запускаем поиск по всей игровой карте
+    pcall(function()
+        findAndRemoveMonsters(workspace)
+    end)
+
+    -- Пытаемся удалить конкретно известных убийц
+    pcall(function()
+        local killParts = workspace:GetDescendants()
+        for _, part in pairs(killParts) do
+            if part:IsA("BasePart") and part.CanCollide == false and part.Transparency > 0.5 then
+                -- Если это невидимая часть и она находится далеко от игрока — возможно убийца
+                if char:FindFirstChild("HumanoidRootPart") then
+                    local dist = (part.Position - char.HumanoidRootPart.Position).Magnitude
+                    if dist > 50 then
+                        pcall(function() part:Destroy() end)
+                    end
+                end
+            end
+        end
+    end)
+
+    if monstersFound > 0 then
+        status.Text = "✅ Удалено монстров: " .. monstersFound
+        status.TextColor3 = Color3.fromRGB(100, 200, 100)
+    else
+        status.Text = "⚠️ Монстры не найдены, но God Mode работает!"
+        status.TextColor3 = Color3.fromRGB(200, 200, 100)
+    end
+end)
+
 print("✅ Навигатор загружен! Обход работает через Raycast.")
