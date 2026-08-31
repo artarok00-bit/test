@@ -11,13 +11,14 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 300, 0, 230)
-frame.Position = UDim2.new(0.5, -150, 0.5, -115)
+frame.Size = UDim2.new(0, 300, 0, 260)
+frame.Position = UDim2.new(0.5, -150, 0.5, -130)
 frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 frame.Active = true
 frame.Draggable = true
 frame.Parent = screenGui
 
+-- Заголовок
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.Text = "Маршрут-меню"
@@ -25,6 +26,7 @@ title.TextColor3 = Color3.new(1,1,1)
 title.BackgroundColor3 = Color3.fromRGB(50,50,50)
 title.Parent = frame
 
+-- Поле ввода координат
 local input = Instance.new("TextBox")
 input.Size = UDim2.new(0.8, 0, 0, 30)
 input.Position = UDim2.new(0.1, 0, 0.2, 0)
@@ -33,10 +35,11 @@ input.TextColor3 = Color3.new(1,1,1)
 input.BackgroundColor3 = Color3.fromRGB(60,60,60)
 input.Parent = frame
 
+-- Кнопка "Добавить точку"
 local addBtn = Instance.new("TextButton")
-addBtn.Size = UDim2.new(0.8, 0, 0, 30)
-addBtn.Position = UDim2.new(0.1, 0, 0.35, 0)
-addBtn.Text = "Добавить точку"
+addBtn.Size = UDim2.new(0.38, 0, 0, 30)
+addBtn.Position = UDim2.new(0.05, 0, 0.35, 0)
+addBtn.Text = "Добавить"
 addBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
 addBtn.TextColor3 = Color3.new(1,1,1)
 addBtn.Parent = frame
@@ -52,6 +55,27 @@ addBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Кнопка "Сюда" (добавить точку на месте)
+local hereBtn = Instance.new("TextButton")
+hereBtn.Size = UDim2.new(0.38, 0, 0, 30)
+hereBtn.Position = UDim2.new(0.55, 0, 0.35, 0)
+hereBtn.Text = "Сюда"
+hereBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+hereBtn.TextColor3 = Color3.new(1,1,1)
+hereBtn.Parent = frame
+
+hereBtn.MouseButton1Click:Connect(function()
+    local char = game.Players.LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local pos = char.HumanoidRootPart.Position
+        table.insert(route, pos)
+        status.Text = "Точка " .. #route .. " добавлена (текущая позиция)"
+    else
+        status.Text = "Персонаж не найден"
+    end
+end)
+
+-- Поле скорости
 local speedSlider = Instance.new("TextBox")
 speedSlider.Size = UDim2.new(0.8, 0, 0, 30)
 speedSlider.Position = UDim2.new(0.1, 0, 0.5, 0)
@@ -68,30 +92,68 @@ speedSlider.FocusLost:Connect(function()
     end
 end)
 
+-- Кнопка "Координаты" (НОВАЯ!)
+local posBtn = Instance.new("TextButton")
+posBtn.Size = UDim2.new(0.38, 0, 0, 30)
+posBtn.Position = UDim2.new(0.05, 0, 0.65, 0)
+posBtn.Text = "Координаты"
+posBtn.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
+posBtn.TextColor3 = Color3.new(1,1,1)
+posBtn.Parent = frame
+
+posBtn.MouseButton1Click:Connect(function()
+    local char = game.Players.LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local pos = char.HumanoidRootPart.Position
+        status.Text = string.format("X: %.1f, Y: %.1f, Z: %.1f", pos.X, pos.Y, pos.Z)
+        print("Твои координаты:", pos)
+    else
+        status.Text = "Персонаж не найден"
+    end
+end)
+
+-- Кнопка "Старт"
 local startBtn = Instance.new("TextButton")
 startBtn.Size = UDim2.new(0.38, 0, 0, 30)
-startBtn.Position = UDim2.new(0.05, 0, 0.7, 0)
+startBtn.Position = UDim2.new(0.55, 0, 0.65, 0)
 startBtn.Text = "Старт"
 startBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
 startBtn.TextColor3 = Color3.new(1,1,1)
 startBtn.Parent = frame
 
+-- Кнопка "Стоп"
 local stopBtn = Instance.new("TextButton")
 stopBtn.Size = UDim2.new(0.38, 0, 0, 30)
-stopBtn.Position = UDim2.new(0.55, 0, 0.7, 0)
+stopBtn.Position = UDim2.new(0.05, 0, 0.8, 0)
 stopBtn.Text = "Стоп"
 stopBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
 stopBtn.TextColor3 = Color3.new(1,1,1)
 stopBtn.Parent = frame
 
+-- Очистить маршрут
+local clearBtn = Instance.new("TextButton")
+clearBtn.Size = UDim2.new(0.38, 0, 0, 30)
+clearBtn.Position = UDim2.new(0.55, 0, 0.8, 0)
+clearBtn.Text = "Очистить"
+clearBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 0)
+clearBtn.TextColor3 = Color3.new(1,1,1)
+clearBtn.Parent = frame
+
+clearBtn.MouseButton1Click:Connect(function()
+    route = {}
+    status.Text = "Маршрут очищен"
+end)
+
+-- Статус
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(1, 0, 0, 25)
-status.Position = UDim2.new(0, 0, 0.88, 0)
+status.Position = UDim2.new(0, 0, 0.92, 0)
 status.Text = "Готов"
 status.TextColor3 = Color3.new(1,1,1)
 status.BackgroundColor3 = Color3.fromRGB(40,40,40)
 status.Parent = frame
 
+-- Движение по маршруту
 local function moveToNext()
     if not running or #route == 0 then return end
     if currentIndex > #route then
