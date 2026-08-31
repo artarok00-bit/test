@@ -7,6 +7,7 @@ local savedPosition = nil
 local speed = 50
 local flying = false
 local bodyVelocity = nil
+local bodyGyro = nil
 local noclipEnabled = true
 local minimized = false
 
@@ -128,7 +129,7 @@ pointStatus.Parent = content
 local speedLabel = Instance.new("TextLabel")
 speedLabel.Size = UDim2.new(0.4, 0, 0, 20)
 speedLabel.Position = UDim2.new(0.075, 0, 0.4, 0)
-speedLabel.Text = "твоя скорость нахуй"
+speedLabel.Text = "СКОРОСТЬ"
 speedLabel.TextColor3 = Color3.fromRGB(130, 130, 150)
 speedLabel.TextSize = 11
 speedLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -192,7 +193,7 @@ status.Parent = content
 
 -- === ФУНКЦИИ ===
 
--- Ноклип (вкл/выкл)
+-- Ноклип
 local function setNoclip(state)
     noclipEnabled = state
     local char = player.Character
@@ -237,7 +238,7 @@ saveBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Лететь (РЕАЛЬНЫЙ ПОЛЁТ)
+-- Лететь
 flyBtn.MouseButton1Click:Connect(function()
     if not savedPosition then
         status.Text = "ОШИБКА: Нет сохранённой точки!"
@@ -262,15 +263,27 @@ flyBtn.MouseButton1Click:Connect(function()
     humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
     
-    -- Создаём BodyVelocity для полёта
+    -- Удаляем старые Velocity
     if bodyVelocity then
         bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+    if bodyGyro then
+        bodyGyro:Destroy()
+        bodyGyro = nil
     end
     
+    -- Создаём BodyVelocity для полёта
     bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-    bodyVelocity.MaxForce = Vector3.new(10000, 10000, 10000)
+    bodyVelocity.MaxForce = Vector3.new(400000, 400000, 400000)
     bodyVelocity.Parent = char.HumanoidRootPart
+    
+    -- Создаём BodyGyro для стабилизации
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.CFrame = char.HumanoidRootPart.CFrame
+    bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
+    bodyGyro.Parent = char.HumanoidRootPart
     
     flying = true
     status.Text = "✈️ ЛЕТИМ..."
@@ -279,17 +292,21 @@ flyBtn.MouseButton1Click:Connect(function()
     spawn(function()
         while flying and char and char:FindFirstChild("HumanoidRootPart") do
             local currentPos = char.HumanoidRootPart.Position
-            local direction = (savedPosition - currentPos).Unit
             local distance = (savedPosition - currentPos).Magnitude
             
             if distance < 3 then
                 -- Прилетели
                 flying = false
-                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-                bodyVelocity:Destroy()
-                bodyVelocity = nil
+                if bodyVelocity then
+                    bodyVelocity:Destroy()
+                    bodyVelocity = nil
+                end
+                if bodyGyro then
+                    bodyGyro:Destroy()
+                    bodyGyro = nil
+                end
                 
-                -- Включаем гравитацию обратно
+                -- Включаем гравитацию
                 humanoid.PlatformStand = false
                 humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
                 humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
@@ -304,8 +321,21 @@ flyBtn.MouseButton1Click:Connect(function()
                 break
             end
             
-            -- Летим в нужном направлении
-            bodyVelocity.Velocity = direction * speed
+            -- РАСЧЁТ СКОРОСТИ
+            local direction = (savedPosition - currentPos).Unit
+            local currentSpeed = speed
+            
+            -- Проверяем скорость из поля
+            local speedVal = tonumber(speedInput.Text)
+            if speedVal and speedVal > 0 then
+                currentSpeed = speedVal
+                speed = speedVal
+            end
+            
+            -- Применяем скорость
+            if bodyVelocity then
+                bodyVelocity.Velocity = direction * currentSpeed
+            end
             
             task.wait()
         end
@@ -319,6 +349,10 @@ stopFlyBtn.MouseButton1Click:Connect(function()
     if bodyVelocity then
         bodyVelocity:Destroy()
         bodyVelocity = nil
+    end
+    if bodyGyro then
+        bodyGyro:Destroy()
+        bodyGyro = nil
     end
     
     -- Включаем гравитацию
@@ -358,15 +392,18 @@ minBtn.MouseButton1Click:Connect(function()
 end)
 
 closeBtn.MouseButton1Click:Connect(function()
-    -- Отключаем всё при закрытии
     flying = false
     if bodyVelocity then
         bodyVelocity:Destroy()
         bodyVelocity = nil
+    end
+    if bodyGyro then
+        bodyGyro:Destroy()
+        bodyGyro = nil
     end
     humanoid.PlatformStand = false
     setNoclip(false)
     screenGui:Destroy()
 end)
 
-print("✅ Телепорт-меню загружено! Персонаж ЛЕТИТ, а не идёт.")
+print("✅ Телепорт-меню загружено! Скорость работает!")
