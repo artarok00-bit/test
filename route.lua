@@ -351,37 +351,26 @@ local function getNextDirection(currentPos, targetPos, currentDir, previousDirs)
     raycastParams.FilterDescendantsInstances = {player.Character}
     raycastParams.IgnoreWater = true
     
-    -- Проверяем препятствие впереди
     local forwardRay = workspace:Raycast(currentPos + Vector3.new(0, 1, 0), dir * 6, raycastParams)
     
     if forwardRay and forwardRay.Distance < 5 then
-        -- Есть препятствие! Пытаемся обойти
-        
-        -- Получаем нормаль поверхности
         local normal = forwardRay.Normal
         local obstaclePos = forwardRay.Position
         
-        -- Варианты обхода: влево, вправо, вверх
         local directions = {}
         
-        -- Влево (относительно направления)
         local leftDir = Vector3.new(-dir.Z, 0, dir.X).Unit
         table.insert(directions, leftDir)
         
-        -- Вправо
         local rightDir = Vector3.new(dir.Z, 0, -dir.X).Unit
         table.insert(directions, rightDir)
         
-        -- Вверх
         table.insert(directions, Vector3.new(0, 1, 0))
         
-        -- Вверх + влево
         table.insert(directions, (Vector3.new(0, 1, 0) + leftDir).Unit)
         
-        -- Вверх + вправо
         table.insert(directions, (Vector3.new(0, 1, 0) + rightDir).Unit)
         
-        -- Проверяем каждый вариант
         for _, testDir in ipairs(directions) do
             local testPos = currentPos + testDir * 4
             local testRay = workspace:Raycast(testPos + Vector3.new(0, 1, 0), Vector3.new(0, -3, 0), raycastParams)
@@ -391,7 +380,6 @@ local function getNextDirection(currentPos, targetPos, currentDir, previousDirs)
             end
         end
         
-        -- Если ничего не подошло — летим вверх
         return Vector3.new(0, 1, 0)
     end
     
@@ -448,7 +436,6 @@ flyBtn.MouseButton1Click:Connect(function()
         return
     end
     
-    -- Задержка
     local delayMs = tonumber(delayInput.Text) or 0
     if delayMs > 0 then
         status.Text = "⏳ Задержка " .. delayMs .. " мс..."
@@ -456,7 +443,6 @@ flyBtn.MouseButton1Click:Connect(function()
         task.wait(delayMs / 1000)
     end
     
-    -- ОТКЛЮЧАЕМ ГРАВИТАЦИЮ
     humanoid.PlatformStand = true
     humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
@@ -513,10 +499,8 @@ flyBtn.MouseButton1Click:Connect(function()
             local direction
             
             if noclipMode then
-                -- ОБХОД ПРЕПЯТСТВИЙ
                 direction = getNextDirection(currentPos, savedPosition, (savedPosition - currentPos).Unit)
             else
-                -- ПРЯМОЙ ПОЛЁТ
                 direction = (savedPosition - currentPos).Unit
             end
             
@@ -527,7 +511,6 @@ flyBtn.MouseButton1Click:Connect(function()
             task.wait()
         end
         
-        -- Если полёт прерван
         if flying then
             flying = false
             if bodyVelocity then bodyVelocity:Destroy() end
@@ -562,6 +545,103 @@ stopBtn.MouseButton1Click:Connect(function()
     status.TextColor3 = Color3.fromRGB(200, 200, 100)
 end)
 
+-- =======================================================
+-- НОВАЯ КНОПКА "БЕССМЕРТИЕ"
+-- =======================================================
+
+local antiKillBtn = Instance.new("TextButton")
+antiKillBtn.Size = UDim2.new(0.85, 0, 0, 30)
+antiKillBtn.Position = UDim2.new(0.075, 0, 0.45, 0)
+antiKillBtn.Text = "🛡️ БЕССМЕРТИЕ"
+antiKillBtn.TextColor3 = Color3.new(1, 1, 1)
+antiKillBtn.TextSize = 13
+antiKillBtn.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+antiKillBtn.BorderSizePixel = 0
+antiKillBtn.Parent = content
+
+local antiKillCorner = Instance.new("UICorner")
+antiKillCorner.CornerRadius = UDim.new(0, 6)
+antiKillCorner.Parent = antiKillBtn
+
+local godModeActive = false
+
+antiKillBtn.MouseButton1Click:Connect(function()
+    local char = player.Character
+    if not char then
+        status.Text = "❌ Персонаж не найден!"
+        status.TextColor3 = Color3.fromRGB(200, 80, 80)
+        return
+    end
+
+    godModeActive = not godModeActive
+    local humanoid = char:FindFirstChild("Humanoid")
+    
+    if humanoid then
+        if godModeActive then
+            humanoid.MaxHealth = math.huge
+            humanoid.Health = math.huge
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+            antiKillBtn.Text = "🛡️ БЕССМЕРТИЕ: ВКЛ"
+            antiKillBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+            status.Text = "✅ Бессмертие ВКЛЮЧЕНО!"
+            status.TextColor3 = Color3.fromRGB(100, 200, 100)
+        else
+            humanoid.MaxHealth = 100
+            humanoid.Health = 100
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+            antiKillBtn.Text = "🛡️ БЕССМЕРТИЕ"
+            antiKillBtn.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+            status.Text = "🟡 Бессмертие ВЫКЛЮЧЕНО"
+            status.TextColor3 = Color3.fromRGB(200, 200, 100)
+        end
+    end
+    
+    -- Удаляем монстров (только при включении)
+    if godModeActive then
+        local monstersFound = 0
+        local function findAndRemoveMonsters(obj)
+            if obj:IsA("Model") or obj:IsA("Part") or obj:IsA("BasePart") then
+                if string.find(string.lower(obj.Name), "monster") or 
+                   string.find(string.lower(obj.Name), "boss") or 
+                   string.find(string.lower(obj.Name), "chase") or
+                   string.find(string.lower(obj.Name), "kill") or
+                   string.find(string.lower(obj.Name), "deadly") then
+                    if obj ~= char and obj.Parent ~= char then
+                        pcall(function() obj:Destroy() end)
+                        monstersFound = monstersFound + 1
+                    end
+                end
+            end
+            for _, child in pairs(obj:GetChildren()) do
+                findAndRemoveMonsters(child)
+            end
+        end
+
+        pcall(function()
+            findAndRemoveMonsters(workspace)
+        end)
+
+        pcall(function()
+            local killParts = workspace:GetDescendants()
+            for _, part in pairs(killParts) do
+                if part:IsA("BasePart") and part.CanCollide == false and part.Transparency > 0.5 then
+                    if char:FindFirstChild("HumanoidRootPart") then
+                        local dist = (part.Position - char.HumanoidRootPart.Position).Magnitude
+                        if dist > 50 then
+                            pcall(function() part:Destroy() end)
+                        end
+                    end
+                end
+            end
+        end)
+
+        if monstersFound > 0 then
+            status.Text = "✅ Бессмертие + удалено " .. monstersFound .. " монстров"
+            status.TextColor3 = Color3.fromRGB(100, 200, 100)
+        end
+    end
+end)
+
 -- ===== УПРАВЛЕНИЕ ОКНОМ =====
 
 minBtn.MouseButton1Click:Connect(function()
@@ -577,99 +657,6 @@ closeBtn.MouseButton1Click:Connect(function()
     if bodyGyro then bodyGyro:Destroy() end
     humanoid.PlatformStand = false
     screenGui:Destroy()
-end)
-
--- =======================================================
--- КНОПКА "УБРАТЬ МОНСТРОВ" (Анти-убийство)
--- =======================================================
-
-local antiKillBtn = Instance.new("TextButton")
-antiKillBtn.Size = UDim2.new(0.85, 0, 0, 34)
-antiKillBtn.Position = UDim2.new(0.075, 0, 0.45, 0) -- Поставь туда, где удобно
-antiKillBtn.Text = "🛡️ УБРАТЬ МОНСТРОВ"
-antiKillBtn.TextColor3 = Color3.new(1, 1, 1)
-antiKillBtn.TextSize = 14
-antiKillBtn.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
-antiKillBtn.BorderSizePixel = 0
-antiKillBtn.Parent = content
-
-local antiKillCorner = Instance.new("UICorner")
-antiKillCorner.CornerRadius = UDim.new(0, 6)
-antiKillCorner.Parent = antiKillBtn
-
--- Функция для кнопки
-antiKillBtn.MouseButton1Click:Connect(function()
-    local char = player.Character
-    if not char then
-        status.Text = "❌ Персонаж не найден!"
-        status.TextColor3 = Color3.fromRGB(200, 80, 80)
-        return
-    end
-
-    -- 1. ВКЛЮЧАЕМ GOD MODE (бессмертие)
-    local humanoid = char:FindFirstChild("Humanoid")
-    if humanoid then
-        humanoid.MaxHealth = math.huge -- Ставим бесконечное здоровье
-        humanoid.Health = math.huge
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false) -- Запрещаем состояние смерти
-        status.Text = "✅ God Mode включен!"
-        status.TextColor3 = Color3.fromRGB(100, 200, 100)
-    end
-
-    -- 2. ИЩЕМ И УДАЛЯЕМ МОНСТРОВ И УБИЙЦ
-    local monstersFound = 0
-    local function findAndRemoveMonsters(obj)
-        -- Проверяем текущий объект
-        if obj:IsA("Model") or obj:IsA("Part") or obj:IsA("BasePart") then
-            -- Ищем по ключевым словам в имени (обычно монстры названы "Monster", "Boss" или "Kill")
-            if string.find(string.lower(obj.Name), "monster") or 
-               string.find(string.lower(obj.Name), "boss") or 
-               string.find(string.lower(obj.Name), "chase") or
-               string.find(string.lower(obj.Name), "kill") or
-               string.find(string.lower(obj.Name), "deadly") then
-                
-                -- Проверяем, что удаляемый объект — не сам игрок
-                if obj ~= char and obj.Parent ~= char then
-                    pcall(function() obj:Destroy() end)
-                    monstersFound = monstersFound + 1
-                end
-            end
-        end
-        
-        -- Рекурсивно проверяем всех потомков
-        for _, child in pairs(obj:GetChildren()) do
-            findAndRemoveMonsters(child)
-        end
-    end
-
-    -- Запускаем поиск по всей игровой карте
-    pcall(function()
-        findAndRemoveMonsters(workspace)
-    end)
-
-    -- Пытаемся удалить конкретно известных убийц
-    pcall(function()
-        local killParts = workspace:GetDescendants()
-        for _, part in pairs(killParts) do
-            if part:IsA("BasePart") and part.CanCollide == false and part.Transparency > 0.5 then
-                -- Если это невидимая часть и она находится далеко от игрока — возможно убийца
-                if char:FindFirstChild("HumanoidRootPart") then
-                    local dist = (part.Position - char.HumanoidRootPart.Position).Magnitude
-                    if dist > 50 then
-                        pcall(function() part:Destroy() end)
-                    end
-                end
-            end
-        end
-    end)
-
-    if monstersFound > 0 then
-        status.Text = "✅ Удалено монстров: " .. monstersFound
-        status.TextColor3 = Color3.fromRGB(100, 200, 100)
-    else
-        status.Text = "⚠️ Монстры не найдены, но God Mode работает!"
-        status.TextColor3 = Color3.fromRGB(200, 200, 100)
-    end
 end)
 
 print("✅ Навигатор загружен! Обход работает через Raycast.")
