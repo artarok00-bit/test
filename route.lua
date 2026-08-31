@@ -7,6 +7,7 @@ local savedPosition = nil
 local speed = 50
 local flying = false
 local bodyVelocity = nil
+local noclipEnabled = true
 local minimized = false
 
 -- GUI
@@ -127,7 +128,7 @@ pointStatus.Parent = content
 local speedLabel = Instance.new("TextLabel")
 speedLabel.Size = UDim2.new(0.4, 0, 0, 20)
 speedLabel.Position = UDim2.new(0.075, 0, 0.4, 0)
-speedLabel.Text = "СКОРОСТЬ"
+speedLabel.Text = "твоя скорость нахуй"
 speedLabel.TextColor3 = Color3.fromRGB(130, 130, 150)
 speedLabel.TextSize = 11
 speedLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -191,6 +192,19 @@ status.Parent = content
 
 -- === ФУНКЦИИ ===
 
+-- Ноклип (вкл/выкл)
+local function setNoclip(state)
+    noclipEnabled = state
+    local char = player.Character
+    if char then
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = not state
+            end
+        end
+    end
+end
+
 -- Обновление координат
 local function updatePos()
     local char = player.Character
@@ -223,7 +237,7 @@ saveBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Лететь
+-- Лететь (РЕАЛЬНЫЙ ПОЛЁТ)
 flyBtn.MouseButton1Click:Connect(function()
     if not savedPosition then
         status.Text = "ОШИБКА: Нет сохранённой точки!"
@@ -238,26 +252,15 @@ flyBtn.MouseButton1Click:Connect(function()
         return
     end
     
-    -- Отключаем гравитацию и ноклип
+    -- ВКЛЮЧАЕМ НОКЛИП
+    setNoclip(true)
+    
+    -- Отключаем гравитацию
+    humanoid.PlatformStand = true
     humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
-    
-    -- Ноклип
-    local noclip = true
-    local function onTouched()
-        if noclip then
-            return
-        end
-    end
-    
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = false
-            part.Touched:Connect(onTouched)
-        end
-    end
     
     -- Создаём BodyVelocity для полёта
     if bodyVelocity then
@@ -266,12 +269,11 @@ flyBtn.MouseButton1Click:Connect(function()
     
     bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-    bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+    bodyVelocity.MaxForce = Vector3.new(10000, 10000, 10000)
     bodyVelocity.Parent = char.HumanoidRootPart
     
-    -- Плавный полёт к точке
     flying = true
-    status.Text = "✈️ Летим к точке..."
+    status.Text = "✈️ ЛЕТИМ..."
     status.TextColor3 = Color3.fromRGB(100, 200, 255)
     
     spawn(function()
@@ -284,26 +286,27 @@ flyBtn.MouseButton1Click:Connect(function()
                 -- Прилетели
                 flying = false
                 bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-                status.Text = "✅ Прилетел!"
-                status.TextColor3 = Color3.fromRGB(100, 200, 100)
+                bodyVelocity:Destroy()
+                bodyVelocity = nil
                 
                 -- Включаем гравитацию обратно
+                humanoid.PlatformStand = false
                 humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
                 humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
                 humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
                 humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
                 
-                -- Отключаем ноклип
-                noclip = false
-                for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = true
-                    end
-                end
+                -- ВЫКЛЮЧАЕМ НОКЛИП
+                setNoclip(false)
+                
+                status.Text = "✅ ПРИЛЕТЕЛ!"
+                status.TextColor3 = Color3.fromRGB(100, 200, 100)
                 break
             end
             
+            -- Летим в нужном направлении
             bodyVelocity.Velocity = direction * speed
+            
             task.wait()
         end
     end)
@@ -312,28 +315,23 @@ end)
 -- Стоп
 stopFlyBtn.MouseButton1Click:Connect(function()
     flying = false
+    
     if bodyVelocity then
         bodyVelocity:Destroy()
         bodyVelocity = nil
     end
     
     -- Включаем гравитацию
+    humanoid.PlatformStand = false
     humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
     
-    -- Отключаем ноклип
-    local char = player.Character
-    if char then
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = true
-            end
-        end
-    end
+    -- ВЫКЛЮЧАЕМ НОКЛИП
+    setNoclip(false)
     
-    status.Text = "⏹ Остановлен"
+    status.Text = "⏹ ОСТАНОВЛЕН"
     status.TextColor3 = Color3.fromRGB(200, 200, 100)
 end)
 
@@ -360,7 +358,15 @@ minBtn.MouseButton1Click:Connect(function()
 end)
 
 closeBtn.MouseButton1Click:Connect(function()
+    -- Отключаем всё при закрытии
+    flying = false
+    if bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+    humanoid.PlatformStand = false
+    setNoclip(false)
     screenGui:Destroy()
 end)
 
-print("✅ Телепорт-меню загружено!")
+print("✅ Телепорт-меню загружено! Персонаж ЛЕТИТ, а не идёт.")
