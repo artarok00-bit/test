@@ -9,7 +9,6 @@ local flying = false
 local bodyVelocity = nil
 local bodyGyro = nil
 local minimized = false
-local pathPoints = {}
 local noclipMode = false
 local flyDelay = 0
 
@@ -197,7 +196,7 @@ pointStatus.Parent = content
 local noclipBtn = Instance.new("TextButton")
 noclipBtn.Size = UDim2.new(0.85, 0, 0, 34)
 noclipBtn.Position = UDim2.new(0.075, 0, 0.38, 0)
-noclipBtn.Text = "🚧 ОБХОД ПРЕПЯТСТВИЙ: ВЫКЛ"
+noclipBtn.Text = "🚧 ОБХОД: ВЫКЛ"
 noclipBtn.TextColor3 = Color3.new(1, 1, 1)
 noclipBtn.TextSize = 13
 noclipBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
@@ -331,63 +330,72 @@ end)
 noclipBtn.MouseButton1Click:Connect(function()
     noclipMode = not noclipMode
     if noclipMode then
-        noclipBtn.Text = "🚧 ОБХОД ПРЕПЯТСТВИЙ: ВКЛ"
+        noclipBtn.Text = "🚧 ОБХОД: ВКЛ"
         noclipBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
         status.Text = "🟢 Обход ВКЛЮЧЁН"
         status.TextColor3 = Color3.fromRGB(100, 200, 100)
     else
-        noclipBtn.Text = "🚧 ОБХОД ПРЕПЯТСТВИЙ: ВЫКЛ"
+        noclipBtn.Text = "🚧 ОБХОД: ВЫКЛ"
         noclipBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
         status.Text = "🟡 Обход ВЫКЛЮЧЁН"
         status.TextColor3 = Color3.fromRGB(200, 200, 100)
     end
 end)
 
--- ===== УПРОЩЁННЫЙ ОБХОД =====
+-- ===== ПОЛНОЦЕННЫЙ ОБХОД С RAYCAST =====
 
-local function simplePath(startPos, endPos)
-    local path = {startPos}
-    local currentPos = startPos
-    local maxAttempts = 20
-    local attempts = 0
+local function getNextDirection(currentPos, targetPos, currentDir, previousDirs)
+    local dir = (targetPos - currentPos).Unit
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {player.Character}
+    raycastParams.IgnoreWater = true
     
-    while attempts < maxAttempts do
-        attempts = attempts + 1
-        local direction = (endPos - currentPos)
-        local distance = direction.Magnitude
+    -- Проверяем препятствие впереди
+    local forwardRay = workspace:Raycast(currentPos + Vector3.new(0, 1, 0), dir * 6, raycastParams)
+    
+    if forwardRay and forwardRay.Distance < 5 then
+        -- Есть препятствие! Пытаемся обойти
         
-        if distance < 5 then
-            table.insert(path, endPos)
-            return path
+        -- Получаем нормаль поверхности
+        local normal = forwardRay.Normal
+        local obstaclePos = forwardRay.Position
+        
+        -- Варианты обхода: влево, вправо, вверх
+        local directions = {}
+        
+        -- Влево (относительно направления)
+        local leftDir = Vector3.new(-dir.Z, 0, dir.X).Unit
+        table.insert(directions, leftDir)
+        
+        -- Вправо
+        local rightDir = Vector3.new(dir.Z, 0, -dir.X).Unit
+        table.insert(directions, rightDir)
+        
+        -- Вверх
+        table.insert(directions, Vector3.new(0, 1, 0))
+        
+        -- Вверх + влево
+        table.insert(directions, (Vector3.new(0, 1, 0) + leftDir).Unit)
+        
+        -- Вверх + вправо
+        table.insert(directions, (Vector3.new(0, 1, 0) + rightDir).Unit)
+        
+        -- Проверяем каждый вариант
+        for _, testDir in ipairs(directions) do
+            local testPos = currentPos + testDir * 4
+            local testRay = workspace:Raycast(testPos + Vector3.new(0, 1, 0), Vector3.new(0, -3, 0), raycastParams)
+            
+            if not testRay then
+                return testDir
+            end
         end
         
-        local dirUnit = direction.Unit
-        
-        -- Проверяем препятствие
-        local checkPos = currentPos + dirUnit * 5 + Vector3.new(0, 1, 0)
-        local raycastParams = RaycastParams.new()
-        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-        raycastParams.FilterDescendantsInstances = {player.Character}
-        
-        local hit = workspace:Raycast(checkPos, Vector3.new(0, -3, 0), raycastParams)
-        
-        if hit then
-            -- Есть препятствие — поднимаемся
-            local upPos = currentPos + Vector3.new(0, 6, 0)
-            table.insert(path, upPos)
-            currentPos = upPos
-            status.Text = "⬆ Поднимаюсь..."
-        else
-            -- Двигаемся вперёд
-            local nextPos = currentPos + dirUnit * 4
-            nextPos = Vector3.new(nextPos.X, currentPos.Y, nextPos.Z)
-            table.insert(path, nextPos)
-            currentPos = nextPos
-        end
+        -- Если ничего не подошло — летим вверх
+        return Vector3.new(0, 1, 0)
     end
     
-    table.insert(path, endPos)
-    return path
+    return dir
 end
 
 -- ===== ЗАПОМНИТЬ ТОЧКУ =====
@@ -424,7 +432,7 @@ myPosBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ===== ЛЕТЕТЬ (РАБОТАЕТ ВСЕГДА) =====
+-- ===== ЛЕТЕТЬ =====
 
 flyBtn.MouseButton1Click:Connect(function()
     if not savedPosition then
@@ -448,26 +456,7 @@ flyBtn.MouseButton1Click:Connect(function()
         task.wait(delayMs / 1000)
     end
     
-    local startPos = char.HumanoidRootPart.Position
-    local pointsToFollow = {savedPosition}
-    
-    -- Если включён обход — строим путь
-    if noclipMode then
-        pathPoints = simplePath(startPos, savedPosition)
-        if #pathPoints > 1 then
-            pointsToFollow = pathPoints
-            status.Text = "🗺 Обход: " .. #pathPoints .. " точек"
-            status.TextColor3 = Color3.fromRGB(100, 200, 255)
-        else
-            status.Text = "⚠ Обход не нужен, летим напрямую"
-            status.TextColor3 = Color3.fromRGB(200, 200, 100)
-        end
-    else
-        status.Text = "✈️ Прямой полёт..."
-        status.TextColor3 = Color3.fromRGB(100, 200, 255)
-    end
-    
-    -- ОТКЛЮЧАЕМ ГРАВИТАЦИЮ (ВСЕГДА)
+    -- ОТКЛЮЧАЕМ ГРАВИТАЦИЮ
     humanoid.PlatformStand = true
     humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
@@ -488,45 +477,68 @@ flyBtn.MouseButton1Click:Connect(function()
     bodyGyro.Parent = char.HumanoidRootPart
     
     flying = true
-    local pointIndex = 2
+    
+    if noclipMode then
+        status.Text = "🧭 Обход препятствий..."
+        status.TextColor3 = Color3.fromRGB(100, 200, 255)
+    else
+        status.Text = "✈️ Прямой полёт..."
+        status.TextColor3 = Color3.fromRGB(100, 200, 255)
+    end
+    
+    local currentSpeed = tonumber(speedInput.Text) or 50
+    local lastDirection = nil
     
     spawn(function()
-        while flying and char and char:FindFirstChild("HumanoidRootPart") and pointIndex <= #pointsToFollow do
-            local targetPos = pointsToFollow[pointIndex]
+        while flying and char and char:FindFirstChild("HumanoidRootPart") do
             local currentPos = char.HumanoidRootPart.Position
-            local distance = (targetPos - currentPos).Magnitude
+            local distance = (savedPosition - currentPos).Magnitude
             
-            if distance < 4 then
-                pointIndex = pointIndex + 1
-                if pointIndex <= #pointsToFollow then
-                    status.Text = "📍 " .. pointIndex .. "/" .. #pointsToFollow
-                end
-                continue
+            if distance < 3 then
+                flying = false
+                if bodyVelocity then bodyVelocity:Destroy() end
+                if bodyGyro then bodyGyro:Destroy() end
+                
+                humanoid.PlatformStand = false
+                humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+                humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+                humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+                humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+                
+                status.Text = "✅ ПРИЛЕТЕЛ!"
+                status.TextColor3 = Color3.fromRGB(100, 200, 100)
+                break
             end
             
-            local direction = (targetPos - currentPos).Unit
-            local currentSpeed = tonumber(speedInput.Text) or 50
+            local direction
+            
+            if noclipMode then
+                -- ОБХОД ПРЕПЯТСТВИЙ
+                direction = getNextDirection(currentPos, savedPosition, (savedPosition - currentPos).Unit)
+            else
+                -- ПРЯМОЙ ПОЛЁТ
+                direction = (savedPosition - currentPos).Unit
+            end
             
             if bodyVelocity then
                 bodyVelocity.Velocity = direction * currentSpeed
             end
+            
             task.wait()
         end
         
-        flying = false
-        if bodyVelocity then bodyVelocity:Destroy() end
-        if bodyGyro then bodyGyro:Destroy() end
-        
-        humanoid.PlatformStand = false
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
-        
-        if pointIndex > #pointsToFollow then
-            status.Text = "✅ ПРИЛЕТЕЛ!"
-            status.TextColor3 = Color3.fromRGB(100, 200, 100)
-        else
+        -- Если полёт прерван
+        if flying then
+            flying = false
+            if bodyVelocity then bodyVelocity:Destroy() end
+            if bodyGyro then bodyGyro:Destroy() end
+            
+            humanoid.PlatformStand = false
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+            
             status.Text = "⏹ ОСТАНОВЛЕН"
             status.TextColor3 = Color3.fromRGB(200, 200, 100)
         end
@@ -567,4 +579,4 @@ closeBtn.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
 
-print("✅ Навигатор загружен! Полет работает ВСЕГДА, обход переработан.")
+print("✅ Навигатор загружен! Обход работает через Raycast.")
