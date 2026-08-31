@@ -18,7 +18,7 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = player:WaitForChild("PlayerGui")
 screenGui.ResetOnSpawn = false
 
--- Окно (УВЕЛИЧЕНО)
+-- Окно
 local frame = Instance.new("Frame")
 frame.Size = UDim2.new(0, 380, 0, 480)
 frame.Position = UDim2.new(0.5, -190, 0.5, -240)
@@ -90,7 +90,7 @@ content.Position = UDim2.new(0, 0, 0, 45)
 content.BackgroundTransparency = 1
 content.Parent = frame
 
--- ===== КООРДИНАТЫ ТЕКУЩИЕ =====
+-- Текущая позиция
 local posLabel = Instance.new("TextLabel")
 posLabel.Size = UDim2.new(0.9, 0, 0, 25)
 posLabel.Position = UDim2.new(0.05, 0, 0.02, 0)
@@ -101,7 +101,7 @@ posLabel.TextXAlignment = Enum.TextXAlignment.Center
 posLabel.BackgroundTransparency = 1
 posLabel.Parent = content
 
--- ===== ВВОД КООРДИНАТ (3 ПОЛЯ) =====
+-- Ввод координат
 local coordLabel = Instance.new("TextLabel")
 coordLabel.Size = UDim2.new(0.9, 0, 0, 22)
 coordLabel.Position = UDim2.new(0.05, 0, 0.08, 0)
@@ -154,8 +154,7 @@ local zCorner = Instance.new("UICorner")
 zCorner.CornerRadius = UDim.new(0, 5)
 zCorner.Parent = zInput
 
--- ===== КНОПКИ СОХРАНЕНИЯ =====
-
+-- Кнопки сохранения
 local saveBtn = Instance.new("TextButton")
 saveBtn.Size = UDim2.new(0.42, 0, 0, 36)
 saveBtn.Position = UDim2.new(0.05, 0, 0.24, 0)
@@ -194,8 +193,7 @@ pointStatus.TextXAlignment = Enum.TextXAlignment.Center
 pointStatus.BackgroundTransparency = 1
 pointStatus.Parent = content
 
--- ===== ОБХОД =====
-
+-- Обход
 local noclipBtn = Instance.new("TextButton")
 noclipBtn.Size = UDim2.new(0.85, 0, 0, 34)
 noclipBtn.Position = UDim2.new(0.075, 0, 0.38, 0)
@@ -210,8 +208,7 @@ local noclipCorner = Instance.new("UICorner")
 noclipCorner.CornerRadius = UDim.new(0, 6)
 noclipCorner.Parent = noclipBtn
 
--- ===== СКОРОСТЬ =====
-
+-- Скорость
 local speedLabel = Instance.new("TextLabel")
 speedLabel.Size = UDim2.new(0.4, 0, 0, 20)
 speedLabel.Position = UDim2.new(0.05, 0, 0.47, 0)
@@ -236,8 +233,7 @@ local speedCorner = Instance.new("UICorner")
 speedCorner.CornerRadius = UDim.new(0, 5)
 speedCorner.Parent = speedInput
 
--- ===== ЗАДЕРЖКА =====
-
+-- Задержка
 local delayLabel = Instance.new("TextLabel")
 delayLabel.Size = UDim2.new(0.4, 0, 0, 20)
 delayLabel.Position = UDim2.new(0.50, 0, 0.47, 0)
@@ -262,8 +258,7 @@ local delayCorner = Instance.new("UICorner")
 delayCorner.CornerRadius = UDim.new(0, 5)
 delayCorner.Parent = delayInput
 
--- ===== КНОПКИ ЛЕТЕТЬ/СТОП =====
-
+-- Кнопки Лететь/Стоп
 local flyBtn = Instance.new("TextButton")
 flyBtn.Size = UDim2.new(0.42, 0, 0, 40)
 flyBtn.Position = UDim2.new(0.05, 0, 0.61, 0)
@@ -292,8 +287,7 @@ local stopCorner = Instance.new("UICorner")
 stopCorner.CornerRadius = UDim.new(0, 7)
 stopCorner.Parent = stopBtn
 
--- ===== СТАТУС =====
-
+-- Статус
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(0.9, 0, 0, 30)
 status.Position = UDim2.new(0.05, 0, 0.73, 0)
@@ -304,8 +298,7 @@ status.TextXAlignment = Enum.TextXAlignment.Center
 status.BackgroundTransparency = 1
 status.Parent = content
 
--- ===== ПОДСКАЗКА =====
-
+-- Подсказка
 local hint = Instance.new("TextLabel")
 hint.Size = UDim2.new(0.9, 0, 0, 40)
 hint.Position = UDim2.new(0.05, 0, 0.83, 0)
@@ -350,68 +343,54 @@ noclipBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ===== ПОСТРОЕНИЕ ПУТИ =====
+-- ===== УПРОЩЁННЫЙ ОБХОД =====
 
-local function findPath(startPos, endPos, maxAttempts)
-    maxAttempts = maxAttempts or 30
-    local attempts = 0
-    local currentPos = startPos
+local function simplePath(startPos, endPos)
     local path = {startPos}
+    local currentPos = startPos
+    local maxAttempts = 20
+    local attempts = 0
     
     while attempts < maxAttempts do
         attempts = attempts + 1
         local direction = (endPos - currentPos)
         local distance = direction.Magnitude
+        
         if distance < 5 then
             table.insert(path, endPos)
             return path
         end
+        
         local dirUnit = direction.Unit
-        local rayOrigin = currentPos + Vector3.new(0, 2, 0)
-        local rayDirection = dirUnit * 8
+        
+        -- Проверяем препятствие
+        local checkPos = currentPos + dirUnit * 5 + Vector3.new(0, 1, 0)
         local raycastParams = RaycastParams.new()
         raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
         raycastParams.FilterDescendantsInstances = {player.Character}
-        raycastParams.IgnoreWater = true
-        local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
         
-        if rayResult and rayResult.Distance < 6 then
-            local leftDir = Vector3.new(-dirUnit.Z, 0, dirUnit.X).Unit
-            local leftPos = currentPos + (dirUnit + leftDir * 2).Unit * 4
-            leftPos = Vector3.new(leftPos.X, currentPos.Y, leftPos.Z)
-            local leftRay = workspace:Raycast(leftPos + Vector3.new(0, 2, 0), Vector3.new(0, -4, 0), raycastParams)
-            if not leftRay then
-                table.insert(path, leftPos)
-                currentPos = leftPos
-                status.Text = "Обход слева..."
-                continue
-            end
-            local rightDir = Vector3.new(dirUnit.Z, 0, -dirUnit.X).Unit
-            local rightPos = currentPos + (dirUnit + rightDir * 2).Unit * 4
-            rightPos = Vector3.new(rightPos.X, currentPos.Y, rightPos.Z)
-            local rightRay = workspace:Raycast(rightPos + Vector3.new(0, 2, 0), Vector3.new(0, -4, 0), raycastParams)
-            if not rightRay then
-                table.insert(path, rightPos)
-                currentPos = rightPos
-                status.Text = "Обход справа..."
-                continue
-            end
-            local upPos = currentPos + Vector3.new(0, 8, 0)
+        local hit = workspace:Raycast(checkPos, Vector3.new(0, -3, 0), raycastParams)
+        
+        if hit then
+            -- Есть препятствие — поднимаемся
+            local upPos = currentPos + Vector3.new(0, 6, 0)
             table.insert(path, upPos)
             currentPos = upPos
-            status.Text = "Обход сверху..."
+            status.Text = "⬆ Поднимаюсь..."
         else
-            local nextPos = currentPos + dirUnit * 5
+            -- Двигаемся вперёд
+            local nextPos = currentPos + dirUnit * 4
             nextPos = Vector3.new(nextPos.X, currentPos.Y, nextPos.Z)
             table.insert(path, nextPos)
             currentPos = nextPos
         end
     end
+    
     table.insert(path, endPos)
     return path
 end
 
--- ===== ЗАПОМНИТЬ ТОЧКУ (РУЧНОЙ ВВОД) =====
+-- ===== ЗАПОМНИТЬ ТОЧКУ =====
 
 saveBtn.MouseButton1Click:Connect(function()
     local x = tonumber(xInput.Text) or 0
@@ -425,7 +404,7 @@ saveBtn.MouseButton1Click:Connect(function()
     status.TextColor3 = Color3.fromRGB(100, 200, 100)
 end)
 
--- ===== ЗАПОМНИТЬ МОИ КООРДИНАТЫ =====
+-- ===== МОИ КООРДИНАТЫ =====
 
 myPosBtn.MouseButton1Click:Connect(function()
     local char = player.Character
@@ -445,7 +424,7 @@ myPosBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ===== ЛЕТЕТЬ =====
+-- ===== ЛЕТЕТЬ (РАБОТАЕТ ВСЕГДА) =====
 
 flyBtn.MouseButton1Click:Connect(function()
     if not savedPosition then
@@ -461,7 +440,7 @@ flyBtn.MouseButton1Click:Connect(function()
         return
     end
     
-    -- Задержка перед полётом
+    -- Задержка
     local delayMs = tonumber(delayInput.Text) or 0
     if delayMs > 0 then
         status.Text = "⏳ Задержка " .. delayMs .. " мс..."
@@ -469,25 +448,26 @@ flyBtn.MouseButton1Click:Connect(function()
         task.wait(delayMs / 1000)
     end
     
+    local startPos = char.HumanoidRootPart.Position
     local pointsToFollow = {savedPosition}
     
+    -- Если включён обход — строим путь
     if noclipMode then
-        local startPos = char.HumanoidRootPart.Position
-        pathPoints = findPath(startPos, savedPosition, 40)
-        if #pathPoints < 2 then
-            status.Text = "❌ Не могу построить маршрут"
-            status.TextColor3 = Color3.fromRGB(200, 80, 80)
-            return
+        pathPoints = simplePath(startPos, savedPosition)
+        if #pathPoints > 1 then
+            pointsToFollow = pathPoints
+            status.Text = "🗺 Обход: " .. #pathPoints .. " точек"
+            status.TextColor3 = Color3.fromRGB(100, 200, 255)
+        else
+            status.Text = "⚠ Обход не нужен, летим напрямую"
+            status.TextColor3 = Color3.fromRGB(200, 200, 100)
         end
-        pointsToFollow = pathPoints
-        status.Text = "🗺 Маршрут построен! " .. #pathPoints .. " точек"
-        status.TextColor3 = Color3.fromRGB(100, 200, 255)
     else
-        status.Text = "✈️ Летим напрямую..."
+        status.Text = "✈️ Прямой полёт..."
         status.TextColor3 = Color3.fromRGB(100, 200, 255)
     end
     
-    -- ОТКЛЮЧАЕМ ГРАВИТАЦИЮ
+    -- ОТКЛЮЧАЕМ ГРАВИТАЦИЮ (ВСЕГДА)
     humanoid.PlatformStand = true
     humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
@@ -519,13 +499,14 @@ flyBtn.MouseButton1Click:Connect(function()
             if distance < 4 then
                 pointIndex = pointIndex + 1
                 if pointIndex <= #pointsToFollow then
-                    status.Text = "📍 Точка " .. pointIndex .. "/" .. #pointsToFollow
+                    status.Text = "📍 " .. pointIndex .. "/" .. #pointsToFollow
                 end
                 continue
             end
             
             local direction = (targetPos - currentPos).Unit
             local currentSpeed = tonumber(speedInput.Text) or 50
+            
             if bodyVelocity then
                 bodyVelocity.Velocity = direction * currentSpeed
             end
@@ -586,4 +567,4 @@ closeBtn.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
 
-print("✅ Навигатор загружен! Размер увеличен, полёт работает всегда.")
+print("✅ Навигатор загружен! Полет работает ВСЕГДА, обход переработан.")
