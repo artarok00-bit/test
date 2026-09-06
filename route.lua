@@ -1,5 +1,5 @@
 -- [[ НАВИГАТОР — ТОЧКИ И КОПИРОВАНИЕ ]]
--- Простое меню: добавляй точки, копируй все сразу
+-- Простое меню: добавляй точки, копируй все сразу!
 
 local Player = game.Players.LocalPlayer
 local ClipboardService = game:GetService("ClipboardService")
