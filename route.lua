@@ -1,6 +1,5 @@
 -- [[ НАВИГАТОР — ТОЧКИ И КОПИРОВАНИЕ ]]
--- Вкладка "ДОБАВИТЬ": кнопка добавить точку
--- Вкладка "ТОЧКИ": список точек + кнопка "КОПИРОВАТЬ"
+-- Простое меню: добавляй точки, копируй все сразу
 
 local Player = game.Players.LocalPlayer
 local ClipboardService = game:GetService("ClipboardService")
@@ -17,8 +16,8 @@ ScreenGui.Parent = Player:WaitForChild("PlayerGui")
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 380, 0, 460)
-MainFrame.Position = UDim2.new(0.5, -190, 0.5, -230)
+MainFrame.Size = UDim2.new(0, 400, 0, 480)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -240)
 MainFrame.BackgroundColor3 = Color3.fromRGB(8, 10, 20)
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -133,11 +132,11 @@ AddPanel.BackgroundTransparency = 1
 AddPanel.Parent = Content
 
 local AddBtn = Instance.new("TextButton")
-AddBtn.Size = UDim2.new(0.85, 0, 0, 60)
-AddBtn.Position = UDim2.new(0.075, 0, 0.1, 0)
+AddBtn.Size = UDim2.new(0.85, 0, 0, 55)
+AddBtn.Position = UDim2.new(0.075, 0, 0.05, 0)
 AddBtn.Text = "📌 ДОБАВИТЬ ТОЧКУ"
 AddBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-AddBtn.TextSize = 18
+AddBtn.TextSize = 17
 AddBtn.BackgroundColor3 = Color3.fromRGB(123, 63, 252)
 AddBtn.BorderSizePixel = 0
 AddBtn.Font = Enum.Font.GothamSemibold
@@ -145,6 +144,20 @@ AddBtn.Parent = AddPanel
 local AddCorner = Instance.new("UICorner")
 AddCorner.CornerRadius = UDim.new(0, 10)
 AddCorner.Parent = AddBtn
+
+local ClearBtn = Instance.new("TextButton")
+ClearBtn.Size = UDim2.new(0.85, 0, 0, 40)
+ClearBtn.Position = UDim2.new(0.075, 0, 0.2, 0)
+ClearBtn.Text = "🗑 ОЧИСТИТЬ ВСЕ"
+ClearBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ClearBtn.TextSize = 14
+ClearBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 80)
+ClearBtn.BorderSizePixel = 0
+ClearBtn.Font = Enum.Font.GothamSemibold
+ClearBtn.Parent = AddPanel
+local ClearCorner = Instance.new("UICorner")
+ClearCorner.CornerRadius = UDim.new(0, 8)
+ClearCorner.Parent = ClearBtn
 
 local AddStatus = Instance.new("TextLabel")
 AddStatus.Size = UDim2.new(0.9, 0, 0, 30)
@@ -156,31 +169,6 @@ AddStatus.TextXAlignment = Enum.TextXAlignment.Center
 AddStatus.BackgroundTransparency = 1
 AddStatus.Font = Enum.Font.Gotham
 AddStatus.Parent = AddPanel
-
-local ClearBtn = Instance.new("TextButton")
-ClearBtn.Size = UDim2.new(0.85, 0, 0, 40)
-ClearBtn.Position = UDim2.new(0.075, 0, 0.55, 0)
-ClearBtn.Text = "🗑 ОЧИСТИТЬ ВСЕ ТОЧКИ"
-ClearBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ClearBtn.TextSize = 14
-ClearBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 80)
-ClearBtn.BorderSizePixel = 0
-ClearBtn.Font = Enum.Font.GothamSemibold
-ClearBtn.Parent = AddPanel
-local ClearCorner = Instance.new("UICorner")
-ClearCorner.CornerRadius = UDim.new(0, 8)
-ClearCorner.Parent = ClearBtn
-
-local StatusText = Instance.new("TextLabel")
-StatusText.Size = UDim2.new(0.9, 0, 0, 22)
-StatusText.Position = UDim2.new(0.05, 0, 0.8, 0)
-StatusText.Text = "🟢 Готов"
-StatusText.TextColor3 = Color3.fromRGB(100, 200, 100)
-StatusText.TextSize = 13
-StatusText.TextXAlignment = Enum.TextXAlignment.Center
-StatusText.BackgroundTransparency = 1
-StatusText.Font = Enum.Font.Gotham
-StatusText.Parent = AddPanel
 
 -- ===== ВКЛАДКА "ТОЧКИ" =====
 local PointsPanel = Instance.new("Frame")
@@ -219,11 +207,11 @@ local function UpdateList()
 end
 
 local CopyBtn = Instance.new("TextButton")
-CopyBtn.Size = UDim2.new(0.85, 0, 0, 40)
+CopyBtn.Size = UDim2.new(0.85, 0, 0, 45)
 CopyBtn.Position = UDim2.new(0.075, 0, 0.82, 0)
 CopyBtn.Text = "📋 КОПИРОВАТЬ ВСЕ КООРДИНАТЫ"
 CopyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CopyBtn.TextSize = 14
+CopyBtn.TextSize = 15
 CopyBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 120)
 CopyBtn.BorderSizePixel = 0
 CopyBtn.Font = Enum.Font.GothamSemibold
@@ -248,22 +236,20 @@ CopyStatus.Parent = PointsPanel
 local function AddPoint()
     local char = Player.Character
     if not char then
-        StatusText.Text = "❌ Персонаж не найден"
-        StatusText.TextColor3 = Color3.fromRGB(200, 80, 80)
+        AddStatus.Text = "❌ Персонаж не найден"
+        AddStatus.TextColor3 = Color3.fromRGB(200, 80, 80)
         return
     end
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then
-        StatusText.Text = "❌ RootPart не найден"
-        StatusText.TextColor3 = Color3.fromRGB(200, 80, 80)
+        AddStatus.Text = "❌ RootPart не найден"
+        AddStatus.TextColor3 = Color3.fromRGB(200, 80, 80)
         return
     end
     table.insert(Points, root.Position)
     PointsCount.Text = #Points
     UpdateList()
-    StatusText.Text = "✅ Точка " .. #Points .. " добавлена"
-    StatusText.TextColor3 = Color3.fromRGB(100, 200, 100)
-    AddStatus.Text = "✅ Точка " .. #Points .. " сохранена!"
+    AddStatus.Text = "✅ Точка " .. #Points .. " добавлена!"
     AddStatus.TextColor3 = Color3.fromRGB(100, 200, 100)
     task.wait(0.8)
     AddStatus.Text = "🟢 Подойди в нужное место и нажми кнопку"
@@ -274,8 +260,9 @@ local function ClearPoints()
     Points = {}
     PointsCount.Text = "0"
     UpdateList()
-    StatusText.Text = "🗑 Точки очищены"
-    StatusText.TextColor3 = Color3.fromRGB(200, 200, 100)
+    AddStatus.Text = "🗑 Точки очищены"
+    AddStatus.TextColor3 = Color3.fromRGB(200, 200, 100)
+    task.wait(0.5)
     AddStatus.Text = "🟢 Подойди в нужное место и нажми кнопку"
     AddStatus.TextColor3 = Color3.fromRGB(180, 180, 210)
 end
@@ -298,7 +285,6 @@ end
 -- ===== ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК =====
 
 AddTab.MouseButton1Click:Connect(function()
-    CurrentTab = "Add"
     AddPanel.Visible = true
     PointsPanel.Visible = false
     AddTab.BackgroundColor3 = Color3.fromRGB(123, 63, 252)
@@ -308,7 +294,6 @@ AddTab.MouseButton1Click:Connect(function()
 end)
 
 PointsTab.MouseButton1Click:Connect(function()
-    CurrentTab = "Points"
     AddPanel.Visible = false
     PointsPanel.Visible = true
     PointsTab.BackgroundColor3 = Color3.fromRGB(123, 63, 252)
@@ -329,7 +314,7 @@ MinBtn.MouseButton1Click:Connect(function()
     Content.Visible = not Minimized
     TabBar.Visible = not Minimized
     MinBtn.Text = Minimized and "+" or "─"
-    MainFrame.Size = Minimized and UDim2.new(0, 380, 0, 46) or UDim2.new(0, 380, 0, 460)
+    MainFrame.Size = Minimized and UDim2.new(0, 400, 0, 46) or UDim2.new(0, 400, 0, 480)
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
@@ -343,4 +328,4 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 print("✅ НАВИГАТОР загружен!")
-print("📌 P — добавить точку | Вкладка ТОЧКИ — скопировать координаты")
+print("📌 P — добавить точку | Вкладка ТОЧКИ — скопировать все координаты")
